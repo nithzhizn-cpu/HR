@@ -4,7 +4,10 @@ from typing import Dict, Optional
 
 from pydub import AudioSegment
 from pydub.exceptions import CouldntDecodeError
-
+from pydub import AudioSegment
+AudioSegment.converter = "ffmpeg"
+AudioSegment.ffmpeg = "ffmpeg"
+AudioSegment.ffprobe = "ffprobe"
 
 # ------------------------------
 #   SAFE VOICE ANALYZER FOR RAILWAY
