@@ -23,7 +23,7 @@ from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from ai.voice import analyze_voice_bytes
 from ai.photo import analyze_photo_bytes
