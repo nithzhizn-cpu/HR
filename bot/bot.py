@@ -28,7 +28,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 # ==========================================================
 
 API_TOKEN = os.getenv("BOT_TOKEN", "8528803929:AAHTyrVXHv-dMqp5CNcCF1jDzh1_chCc-yk")
-BACKEND_URL = os.getenv("BACKEND_URL", "https://hr-production-d7d5.up.railway.app")
+BACKEND_URL = os.getenv("BACKEND_URL", "https://resourceful-reverence-production.up.railway.app")
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://lively-alignment-production.up.railway.app")
 
 logging.basicConfig(level=logging.INFO)
