@@ -23,7 +23,7 @@ from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import Field
 
 from ai.voice import analyze_voice_bytes
 from ai.photo import analyze_photo_bytes
@@ -225,10 +225,10 @@ class CandidateDTO(BaseModel):
 
 class CandidateDetailDTO(BaseModel):
     candidate: CandidateDTO
-    tests: List[TestResultDTO] = []
-    reports: List[dict] = []
-    voices: List[VoiceResultDTO] = []
-    photos: List[PhotoResultDTO] = []
+    tests: List[TestResultDTO] = Field(default_factory=list)
+    reports: List[dict] = Field(default_factory=list)
+    voices: List[VoiceResultDTO] = Field(default_factory=list)
+    photos: List[PhotoResultDTO] = Field(default_factory=list)
 
 
 class TestResultDTO(BaseModel):
