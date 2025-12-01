@@ -13,6 +13,9 @@ import io
 import os
 import json
 import datetime
+from statistics import mean
+import matplotlib.pyplot as plt
+import tempfile
 import sqlite3
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -253,7 +256,12 @@ class PhotoResultDTO(BaseModel):
     contrast: float
     created_at: str
 
-
+class ProgressReport(BaseModel):
+    emotional_stability: str
+    stress_trend: str
+    fatigue_trend: str
+    overall_change: str
+    details: dict
 
 
 
@@ -582,9 +590,139 @@ def get_candidate(candidate_id: int, x_admin_key: Optional[str] = Header(None)):
     )
 
 
+@app.get("/api/hr/stats/{candidate_id}")
+def candidate_stats(candidate_id: int, x_admin_key: Optional[str] = Header(None)):
+    check_admin(x_admin_key)
 
+    conn = get_conn()
+    c = conn.cursor()
+
+    # stress timeline
+    c.execute("""
+        SELECT stress_score, created_at
+        FROM voice_results
+        WHERE candidate_id=?
+        ORDER BY id ASC
+    """, (candidate_id,))
+    voice_rows = c.fetchall()
+
+    stress = [{"score": r[0], "ts": r[1]} for r in voice_rows]
+
+    # photo timeline
+    c.execute("""
+        SELECT fatigue_level, brightness, contrast, created_at
+        FROM photo_results
+        WHERE candidate_id=?
+        ORDER BY id ASC
+    """, (candidate_id,))
+    photo_rows = c.fetchall()
+
+    photo = [{
+        "fatigue": r[0],
+        "brightness": r[1],
+        "contrast": r[2],
+        "ts": r[3]
+    } for r in photo_rows]
+
+    # test timelines
+    c.execute("""
+        SELECT test_type, scores_json, created_at
+        FROM test_results
+        WHERE candidate_id=?
+        ORDER BY id ASC
+    """, (candidate_id,))
+    test_rows = c.fetchall()
+
+    tests = []
+    for ttype, js, ts in test_rows:
+        tests.append({
+            "test_type": ttype,
+            "scores": json.loads(js),
+            "ts": ts
+        })
+
+    conn.close()
+
+    return {
+        "stress": stress,
+        "photo": photo,
+        "tests": tests
+    }
      
-     
+@app.get("/api/hr/progress/{candidate_id}", response_model=ProgressReport)
+def hr_progress(candidate_id: int, x_admin_key: Optional[str] = Header(None)):
+    check_admin(x_admin_key)
+
+    conn = get_conn()
+    c = conn.cursor()
+
+    # Fetch tests
+    c.execute("""
+        SELECT scores_json
+        FROM test_results
+        WHERE candidate_id=?
+        ORDER BY id ASC
+    """, (candidate_id,))
+    test_rows = [json.loads(r[0]) for r in c.fetchall()]
+
+    # Voice
+    c.execute("""
+        SELECT stress_score
+        FROM voice_results
+        WHERE candidate_id=?
+        ORDER BY id ASC
+    """, (candidate_id,))
+    voice = [r[0] for r in c.fetchall()]
+
+    # Photo fatigue
+    c.execute("""
+        SELECT fatigue_level
+        FROM photo_results
+        WHERE candidate_id=?
+        ORDER BY id ASC
+    """, (candidate_id,))
+    fatigue = [float(r[0]) for r in c.fetchall()]
+
+    conn.close()
+
+    # Calculate
+    emotional_change = ""
+    stress_trend = ""
+    fatigue_trend = ""
+
+    if len(test_rows) >= 2:
+        first = mean(test_rows[0].values())
+        last = mean(test_rows[-1].values())
+        emotional_change = (
+            "Покращення емоційної стабільності" if last > first
+            else "Погіршення емоційної стабільності"
+        )
+
+    if len(voice) >= 2:
+        stress_trend = (
+            "Стрес зменшується" if voice[-1] < voice[0]
+            else "Стрес зростає"
+        )
+
+    if len(fatigue) >= 2:
+        fatigue_trend = (
+            "Втома зменшується" if fatigue[-1] < fatigue[0]
+            else "Втома збільшується"
+        )
+
+    return ProgressReport(
+        emotional_stability=emotional_change or "Недостатньо даних",
+        stress_trend=stress_trend or "Недостатньо даних",
+        fatigue_trend=fatigue_trend or "Недостатньо даних",
+        overall_change="Покращення" if emotional_change.startswith("Пок") else "Погіршення",
+        details={
+            "tests_count": len(test_rows),
+            "voice_count": len(voice),
+            "photo_count": len(fatigue)
+        }
+    )
+
+
 @app.get("/api/billing/status", response_model=BillingStatus)
 def billing_status(x_admin_key: Optional[str] = Header(None)):
     check_admin(x_admin_key)
@@ -613,3 +751,19 @@ def billing_activate_demo(days: int = 14, x_admin_key: Optional[str] = Header(No
     row = c.fetchone()
     conn.close()
     return BillingStatus(email=row[0], plan=row[1], demo_until=row[2])
+
+@app.get("/api/hr/candidate/{candidate_id}/pdf")
+def pdf_full(candidate_id: int, x_admin_key: Optional[str] = Header(None)):
+    check_admin(x_admin_key)
+
+    # reuse existing endpoint
+    detail = get_candidate(candidate_id, x_admin_key)
+
+    # generate PDF with your existing builder
+    pdf_bytes = build_pdf_report(detail.dict())
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=candidate_{candidate_id}_full.pdf"}
+    )
