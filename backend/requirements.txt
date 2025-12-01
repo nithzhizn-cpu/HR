@@ -1,12 +1,9 @@
 fastapi
 uvicorn
-aiogram==2.25.1
-aiohttp
+
+aiohttp==3.13.2
 pydantic
 python-multipart
-python-dotenv
-pydub
-ffmpeg-python
 
 numpy
 scipy
@@ -14,4 +11,3 @@ Pillow
 
 reportlab
 opencv-python-headless
-
