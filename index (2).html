@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI HR · Telegram WebApp</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #020617;
+      color: #e5e7eb;
+    }
+    .wrap {
+      padding: 12px;
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0 0 8px;
+    }
+    .small {
+      font-size: 13px;
+      color: #9ca3af;
+      margin-bottom: 10px;
+    }
+    .candidate-list {
+      max-height: 260px;
+      overflow-y: auto;
+      border-radius: 12px;
+      border: 1px solid #1f2937;
+      background: #020617;
+    }
+    .ci {
+      padding: 8px 10px;
+      border-bottom: 1px solid #111827;
+      cursor: pointer;
+    }
+    .ci:last-child {
+      border-bottom: none;
+    }
+    .ci-title {
+      font-size: 14px;
+    }
+    .ci-sub {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+    .detail {
+      margin-top: 12px;
+      border-radius: 12px;
+      border: 1px solid #1f2937;
+      padding: 10px 12px;
+      background: #020617;
+      font-size: 13px;
+    }
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      border: 1px solid #4b5563;
+      margin-bottom: 6px;
+    }
+    .pill-високий { border-color:#ef4444; color:#fecaca; }
+    .pill-середній { border-color:#f97316; color:#fed7aa; }
+    .pill-низький { border-color:#22c55e; color:#bbf7d0; }
+    .kv {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .kv-label { color:#9ca3af; }
+    .kv-value { font-weight:500; }
+  </style>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script>
+    window.BACKEND_URL = "https://your-backend.up.railway.app";
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <h1>AI HR · Candidates</h1>
+    <div class="small">
+      WebApp працює всередині Telegram. Дані підтягуються з бекенду AI HR Psychologist.
+    </div>
+
+    <div id="candidates" class="candidate-list">Loading...</div>
+
+    <div id="detail" class="detail" style="display:none;"></div>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+
+    const API_ROOT = (window.BACKEND_URL || "http://localhost:8000") + "/api";
+    let ADMIN_KEY = null;
+
+    function getHeaders() {
+      const h = {};
+      if (ADMIN_KEY) h["X-Admin-Key"] = ADMIN_KEY;
+      return h;
+    }
+
+    async function fetchJSON(url, options = {}) {
+      const merged = {
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          ...getHeaders(),
+        },
+      };
+      const res = await fetch(url, merged);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return await res.json();
+    }
+
+    async function loadCandidates() {
+      const box = document.getElementById("candidates");
+      box.textContent = "Loading...";
+      try {
+        const data = await fetchJSON(API_ROOT + "/hr/candidates");
+        box.innerHTML = "";
+        if (!data.length) {
+          box.textContent = "No candidates yet.";
+          return;
+        }
+        data.forEach((c) => {
+          const div = document.createElement("div");
+          div.className = "ci";
+          div.innerHTML = `
+            <div class="ci-title">${c.full_name || "Без імені"}</div>
+            <div class="ci-sub">ID: ${c.id} · TG: ${c.tg_id || "—"}</div>
+          `;
+          div.onclick = () => loadDetail(c.id);
+          box.appendChild(div);
+        });
+      } catch (err) {
+        box.textContent = "Error loading candidates.";
+      }
+    }
+
+    async function loadDetail(id) {
+      const box = document.getElementById("detail");
+      box.style.display = "block";
+      box.textContent = "Loading...";
+      try {
+        const data = await fetchJSON(API_ROOT + "/hr/candidate/" + id);
+        const { candidate, report, last_voice, last_photo } = data;
+        let html = "";
+        html += `<div><b>${candidate.full_name || "Без імені"}</b></div>`;
+        html += `<div class="small">ID: ${candidate.id} · ${candidate.created_at}</div>`;
+        if (report && report.risk_level) {
+          html += `<div class="pill pill-${report.risk_level}">Ризик: ${report.risk_level}</div>`;
+        }
+        if (report && report.summary) {
+          html += `<div style="margin-bottom:6px;">${report.summary}</div>`;
+        }
+        if (last_voice) {
+          html += `<div class="kv"><div class="kv-label">Стрес (голос):</div><div class="kv-value">${last_voice.stress_score.toFixed(2)} / 100 (${last_voice.level})</div></div>`;
+        }
+        if (last_photo) {
+          html += `<div class="kv"><div class="kv-label">Настрій (фото):</div><div class="kv-value">${last_photo.mood}</div></div>`;
+        }
+        box.innerHTML = html;
+      } catch (err) {
+        box.textContent = "Error loading candidate.";
+      }
+    }
+
+    // Admin key: можна передати через start_param, або захардкодити / localStorage
+    ADMIN_KEY =
+      (tg.initDataUnsafe && tg.initDataUnsafe.start_param) ||
+      localStorage.getItem("hr_admin_key") ||
+      "DEV_ADMIN_KEY";
+
+    loadCandidates();
+  </script>
+</body>
+</html>
