@@ -28,7 +28,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 # ==========================================================
 
 API_TOKEN = os.getenv("BOT_TOKEN", "8528803929:AAHTyrVXHv-dMqp5CNcCF1jDzh1_chCc-yk")
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "https://hr-production-d7d5.up.railway.app")
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://your-telegram-webapp-url.up.railway.app")
 
 logging.basicConfig(level=logging.INFO)
