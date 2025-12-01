@@ -3,9 +3,13 @@ uvicorn
 aiohttp
 pydantic
 python-multipart
+
 pydub
 ffmpeg-python
+
 numpy
 scipy
 Pillow
-openai
+
+reportlab
+opencv-python-headless
