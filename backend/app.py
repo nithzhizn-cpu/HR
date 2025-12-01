@@ -225,11 +225,10 @@ class CandidateDTO(BaseModel):
 
 class CandidateDetailDTO(BaseModel):
     candidate: CandidateDTO
-    tests: List[TestResultDTO] = Field(default_factory=list)
-    reports: List[dict] = Field(default_factory=list)
-    voices: List[VoiceResultDTO] = Field(default_factory=list)
-    photos: List[PhotoResultDTO] = Field(default_factory=list)
-
+    tests: List["TestResultDTO"] = Field(default_factory=list)
+reports: List[dict] = Field(default_factory=list)
+voices: List["VoiceResultDTO"] = Field(default_factory=list)
+photos: List["PhotoResultDTO"] = Field(default_factory=list)
 
 class TestResultDTO(BaseModel):
     id: int
@@ -256,6 +255,7 @@ class PhotoResultDTO(BaseModel):
     contrast: float
     created_at: str
 
+CandidateDetailDTO.update_forward_refs()
 class ProgressReport(BaseModel):
     emotional_stability: str
     stress_trend: str
