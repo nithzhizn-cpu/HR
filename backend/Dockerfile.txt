@@ -2,7 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+# ---------- FIX FFMPEG FOR RAILWAY ----------
+RUN apt-get update && \
+    apt-get install -y ffmpeg libavcodec-extra && \
+    ln -s /usr/bin/ffmpeg /usr/local/bin/ffmpeg || true && \
+    ln -s /usr/bin/ffprobe /usr/local/bin/ffprobe || true && \
+    rm -rf /var/lib/apt/lists/*
+
+# ------------------------------------------------
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
