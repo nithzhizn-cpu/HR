@@ -1,8 +1,0 @@
-{
-  "build": {
-    "engine": "static"
-  },
-  "deploy": {
-    "start": ""
-  }
-}
