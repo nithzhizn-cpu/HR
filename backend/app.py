@@ -214,12 +214,18 @@ class SubmitTestRequest(BaseModel):
     test_type: str
     answers: List[int]
 
-
 class CandidateDTO(BaseModel):
     id: int
-    tg_id: Optional[int]
-    full_name: Optional[str]
+    tg_id: int
+    full_name: str
     created_at: str
+
+class CandidateDetailDTO(BaseModel):
+    candidate: CandidateDTO
+    tests: List[TestResultDTO] = []
+    reports: List[dict] = []
+    voices: List[VoiceResultDTO] = []
+    photos: List[PhotoResultDTO] = []
 
 
 class TestResultDTO(BaseModel):
@@ -248,12 +254,7 @@ class PhotoResultDTO(BaseModel):
     created_at: str
 
 
-class CandidateDetailDTO(BaseModel):
-    candidate: CandidateDTO
-    last_test: Optional[TestResultDTO] = None
-    report: Optional[dict] = None
-    last_voice: Optional[VoiceResultDTO] = None
-    last_photo: Optional[PhotoResultDTO] = None
+
 
 
 class BillingStatus(BaseModel):
@@ -498,218 +499,92 @@ def get_candidate(candidate_id: int, x_admin_key: Optional[str] = Header(None)):
     conn = get_conn()
     c = conn.cursor()
 
+    # Candidate
     c.execute("SELECT id, tg_id, full_name, created_at FROM candidates WHERE id = ?", (candidate_id,))
     row = c.fetchone()
     if not row:
         conn.close()
         raise HTTPException(status_code=404, detail="Candidate not found")
-
     candidate = CandidateDTO(id=row[0], tg_id=row[1], full_name=row[2], created_at=row[3])
 
-    c.execute(
-        """
+    # ALL TEST RESULTS
+    c.execute("""
         SELECT id, candidate_id, test_type, scores_json, created_at
         FROM test_results
         WHERE candidate_id = ?
         ORDER BY id DESC
-        LIMIT 1
-        """,
-        (candidate_id,),
-    )
-    tr = c.fetchone()
-    last_test = None
-    if tr:
-        scores = json.loads(tr[3])
-        last_test = TestResultDTO(
-            id=tr[0],
-            candidate_id=tr[1],
-            test_type=tr[2],
-            scores=scores,
-            created_at=tr[4],
+    """, (candidate_id,))
+    tests = [
+        TestResultDTO(
+            id=r[0], candidate_id=r[1], test_type=r[2],
+            scores=json.loads(r[3]), created_at=r[4]
         )
+        for r in c.fetchall()
+    ]
 
-    c.execute(
-        """
+    # ALL REPORTS
+    c.execute("""
         SELECT test_type, summary, recommendations, risk_level, created_at
         FROM ai_reports
         WHERE candidate_id = ?
         ORDER BY id DESC
-        LIMIT 1
-        """,
-        (candidate_id,),
-    )
-    rr = c.fetchone()
-    report = None
-    if rr:
-        report = {
-            "test_type": rr[0],
-            "summary": rr[1],
-            "recommendations": json.loads(rr[2]),
-            "risk_level": rr[3],
-            "created_at": rr[4],
+    """, (candidate_id,))
+    reports = [
+        {
+            "test_type": r[0],
+            "summary": r[1],
+            "recommendations": json.loads(r[2]),
+            "risk_level": r[3],
+            "created_at": r[4],
         }
+        for r in c.fetchall()
+    ]
 
-    c.execute(
-        """
+    # ALL VOICE ANALYSIS
+    c.execute("""
         SELECT id, candidate_id, stress_score, level, created_at
         FROM voice_results
         WHERE candidate_id = ?
         ORDER BY id DESC
-        LIMIT 1
-        """,
-        (candidate_id,),
-    )
-    vr = c.fetchone()
-    last_voice = None
-    if vr:
-        last_voice = VoiceResultDTO(
-            id=vr[0],
-            candidate_id=vr[1],
-            stress_score=vr[2],
-            level=vr[3],
-            created_at=vr[4],
+    """, (candidate_id,))
+    voices = [
+        VoiceResultDTO(
+            id=r[0], candidate_id=r[1], stress_score=r[2],
+            level=r[3], created_at=r[4]
         )
+        for r in c.fetchall()
+    ]
 
-    c.execute(
-        """
+    # ALL PHOTO ANALYSIS
+    c.execute("""
         SELECT id, candidate_id, mood, fatigue_level, brightness, contrast, created_at
         FROM photo_results
         WHERE candidate_id = ?
         ORDER BY id DESC
-        LIMIT 1
-        """,
-        (candidate_id,),
-    )
-    pr = c.fetchone()
-    last_photo = None
-    if pr:
-        last_photo = PhotoResultDTO(
-            id=pr[0],
-            candidate_id=pr[1],
-            mood=pr[2],
-            fatigue_level=pr[3],
-            brightness=pr[4],
-            contrast=pr[5],
-            created_at=pr[6],
+    """, (candidate_id,))
+    photos = [
+        PhotoResultDTO(
+            id=r[0], candidate_id=r[1], mood=r[2],
+            fatigue_level=r[3], brightness=r[4],
+            contrast=r[5], created_at=r[6]
         )
+        for r in c.fetchall()
+    ]
 
     conn.close()
+
     return CandidateDetailDTO(
         candidate=candidate,
-        last_test=last_test,
-        report=report,
-        last_voice=last_voice,
-        last_photo=last_photo,
+        tests=tests,
+        reports=reports,
+        voices=voices,
+        photos=photos,
     )
 
 
-@app.get("/api/hr/candidate/{candidate_id}/pdf")
-def get_candidate_pdf(candidate_id: int, x_admin_key: Optional[str] = Header(None)):
-    check_admin(x_admin_key)
 
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute("SELECT id, tg_id, full_name, created_at FROM candidates WHERE id = ?", (candidate_id,))
-    row = c.fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Candidate not found")
-
-    candidate = {
-        "id": row[0],
-        "tg_id": row[1],
-        "full_name": row[2],
-        "created_at": row[3],
-    }
-
-    c.execute(
-        """
-        SELECT test_type, scores_json
-        FROM test_results
-        WHERE candidate_id = ?
-        ORDER BY id DESC
-        LIMIT 1
-        """,
-        (candidate_id,),
-    )
-    tr = c.fetchone()
-    test_type = None
-    scores: Dict[str, float] = {}
-    if tr:
-        test_type = tr[0]
-        scores = json.loads(tr[1])
-
-    c.execute(
-        """
-        SELECT test_type, summary, recommendations, risk_level, created_at
-        FROM ai_reports
-        WHERE candidate_id = ?
-        ORDER BY id DESC
-        LIMIT 1
-        """,
-        (candidate_id,),
-    )
-    rr = c.fetchone()
-    report = None
-    if rr:
-        report = {
-            "test_type": rr[0],
-            "summary": rr[1],
-            "recommendations": json.loads(rr[2]),
-            "risk_level": rr[3],
-            "created_at": rr[4],
-        }
-
-    c.execute(
-        """
-        SELECT stress_score, level, created_at
-        FROM voice_results
-        WHERE candidate_id = ?
-        ORDER BY id DESC
-        LIMIT 1
-        """,
-        (candidate_id,),
-    )
-    vr = c.fetchone()
-    voice = None
-    if vr:
-        voice = {
-            "stress_score": vr[0],
-            "level": vr[1],
-            "created_at": vr[2],
-        }
-
-    c.execute(
-        """
-        SELECT mood, fatigue_level, brightness, contrast, created_at
-        FROM photo_results
-        WHERE candidate_id = ?
-        ORDER BY id DESC
-        LIMIT 1
-        """,
-        (candidate_id,),
-    )
-    pr = c.fetchone()
-    photo = None
-    if pr:
-        photo = {
-            "mood": pr[0],
-            "fatigue_level": pr[1],
-            "brightness": pr[2],
-            "contrast": pr[3],
-            "created_at": pr[4],
-        }
-
-    conn.close()
-
-    pdf_bytes = build_pdf_report(candidate, test_type, scores, report, voice, photo)
-    return StreamingResponse(
-        io.BytesIO(pdf_bytes),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=candidate_{candidate_id}.pdf"},
-    )
-
-
+     
+     
 @app.get("/api/billing/status", response_model=BillingStatus)
 def billing_status(x_admin_key: Optional[str] = Header(None)):
     check_admin(x_admin_key)
@@ -720,9 +595,9 @@ def billing_status(x_admin_key: Optional[str] = Header(None)):
     conn.close()
     if not row:
         raise HTTPException(status_code=500, detail="Billing not initialized")
-    return BillingStatus(email=row[0], plan=row[1], demo_until=row[2])
-
-
+    return BillingStatus(email=row[0], plan=row[1], demo_until=row[2])       
+       
+            
 @app.post("/api/billing/activate_demo", response_model=BillingStatus)
 def billing_activate_demo(days: int = 14, x_admin_key: Optional[str] = Header(None)):
     check_admin(x_admin_key)
