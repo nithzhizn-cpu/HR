@@ -1,7 +1,11 @@
 fastapi
 uvicorn
+aiohttp
 pydantic
 python-multipart
 pydub
-pillow
-reportlab
+ffmpeg-python
+numpy
+scipy
+Pillow
+openai
